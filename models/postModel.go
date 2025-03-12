@@ -1,9 +1,12 @@
 package models
 
-import "gorm.io/gorm"
+import "time"
 
 type Post struct {
-	gorm.Model
-	Title string
-	Body  string
+	ID        uint       `json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
 }

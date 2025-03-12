@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"example.com/gocrud/initializers"
 	"example.com/gocrud/models"
+	"example.com/gocrud/storage"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,14 +15,14 @@ func PostsCreate(c *gin.Context) {
 		Body  string `json:"body" binding:"required"`
 	}
 
-	// Bind JSON with error handling
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
 
 	post := models.Post{Title: body.Title, Body: body.Body}
-	if err := initializers.DB.Create(&post).Error; err != nil {
+
+	if err := storage.CreatePost(&post); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create post"})
 		return
 	}
@@ -31,8 +31,8 @@ func PostsCreate(c *gin.Context) {
 }
 
 func PostsIndex(c *gin.Context) {
-	var posts []models.Post
-	if err := initializers.DB.Find(&posts).Error; err != nil {
+	posts, err := storage.GetAllPosts()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch posts"})
 		return
 	}
@@ -41,15 +41,20 @@ func PostsIndex(c *gin.Context) {
 }
 
 func PostsShow(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
 		return
 	}
 
-	var post models.Post
-	if err := initializers.DB.First(&post, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+	post, err := storage.GetPostByID(uint(id))
+	if err != nil {
+		if err == storage.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch post"})
+		}
 		return
 	}
 
@@ -57,15 +62,20 @@ func PostsShow(c *gin.Context) {
 }
 
 func PostsUpdate(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
 		return
 	}
 
-	var post models.Post
-	if err := initializers.DB.First(&post, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+	existingPost, err := storage.GetPostByID(uint(id))
+	if err != nil {
+		if err == storage.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch post"})
+		}
 		return
 	}
 
@@ -79,10 +89,11 @@ func PostsUpdate(c *gin.Context) {
 		return
 	}
 
+	post := existingPost
 	post.Title = body.Title
 	post.Body = body.Body
 
-	if err := initializers.DB.Save(&post).Error; err != nil {
+	if err := storage.UpdatePost(&post); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update post"})
 		return
 	}
@@ -91,20 +102,20 @@ func PostsUpdate(c *gin.Context) {
 }
 
 func PostsDelete(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
 		return
 	}
 
-	var post models.Post
-	if err := initializers.DB.First(&post, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
-		return
-	}
-
-	if err := initializers.DB.Delete(&post).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete post"})
+	err = storage.DeletePost(uint(id))
+	if err != nil {
+		if err == storage.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete post"})
+		}
 		return
 	}
 

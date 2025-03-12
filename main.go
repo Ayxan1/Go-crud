@@ -1,14 +1,22 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"example.com/gocrud/controllers"
-	"example.com/gocrud/initializers"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func init() {
-	initializers.LoadEnvVariables()
-	initializers.ConnectDB()
+	// Load env variables if .env file exists
+	if _, err := os.Stat(".env"); err == nil {
+		err := godotenv.Load()
+		if err != nil {
+			log.Println("Warning: Error loading .env file")
+		}
+	}
 }
 
 func main() {
@@ -19,5 +27,11 @@ func main() {
 	r.PUT("/posts/:id", controllers.PostsUpdate)
 	r.DELETE("/posts/:id", controllers.PostsDelete)
 
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	// Use port from environment variable or default to 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	r.Run(":" + port) // listen and serve on 0.0.0.0:PORT
 }
